@@ -198,6 +198,7 @@ class cmb_maps_harmonicspace(object):
         self.cls_transf = cls_transf
         self.cls_noise = cls_noise
         self.phas = noise_phas
+        self.noise_maps = None
 
         if lib_dir is not None:
             fn_hash = os.path.join(lib_dir, 'sim_hash.pk')
@@ -249,13 +250,19 @@ class cmb_maps_harmonicspace(object):
         return elm + self.get_sim_enoise(idx), blm + self.get_sim_bnoise(idx)
 
     def get_sim_tnoise(self,idx):
+        if self.noise_maps is not None:
+            return self.noise_maps[0]
         assert 't' in self.cls_noise
         return hp.almxfl(self.phas.get_sim(idx, 0), np.sqrt(self.cls_noise['t']))
 
     def get_sim_enoise(self, idx):
+        if self.noise_maps is not None:
+            return self.noise_maps[1]
         assert 'e' in self.cls_noise
         return hp.almxfl(self.phas.get_sim(idx, 1), np.sqrt(self.cls_noise['e']))
 
     def get_sim_bnoise(self, idx):
+        if self.noise_maps is not None:
+            return self.noise_maps[2]
         assert 'b' in self.cls_noise
         return hp.almxfl(self.phas.get_sim(idx, 2), np.sqrt(self.cls_noise['b']))
