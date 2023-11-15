@@ -251,11 +251,11 @@ class library_jTP(object):
                 hp.write_alm(tfname.replace('tlm.fits', 'tlm.fits'), tlm)
                 hp.write_alm(tfname.replace('tlm.fits', 'elm.fits'), elm)
                 hp.write_alm(tfname.replace('tlm.fits', 'blm.fits'), blm)
-                if a == "t":
-                    return tlm
-                if a == "e":
-                    return elm
-                return blm
+            if a == "t":
+                return tlm
+            if a == "e":
+                return elm
+            return blm
         return hp.read_alm(fname)
 
     def get_sim_tlm(self, idx):
