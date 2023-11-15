@@ -251,6 +251,11 @@ class library_jTP(object):
                 hp.write_alm(tfname.replace('tlm.fits', 'tlm.fits'), tlm)
                 hp.write_alm(tfname.replace('tlm.fits', 'elm.fits'), elm)
                 hp.write_alm(tfname.replace('tlm.fits', 'blm.fits'), blm)
+                if a == "t":
+                    return tlm
+                if a == "e":
+                    return elm
+                return blm
         return hp.read_alm(fname)
 
     def get_sim_tlm(self, idx):
@@ -468,6 +473,118 @@ class library_fullsky_alms_sepTP(library_sepTP):
         elm = hp.almxfl(eblm[0], self.get_fel() * utils.cli(self.transf['e'][:len(self.fel)]))
         blm = hp.almxfl(eblm[1], self.get_fbl() * utils.cli(self.transf['b'][:len(self.fbl)]))
         return elm, blm
+
+class library_fullsky_jTP(library_jTP):
+    """Full-sky isotropic filtering instance.
+
+    Args:
+        lib_dir: directory where hashes and filtered maps will be cached.
+        sim_lib: simulation library instance to inverse-filter
+        nside: healpix resolution of the simulation library
+        cl_len : CMB spectra, used to compute the Wiener-filtered CMB from the inverse variance filtered maps.
+        transf : fiducial transfer function of the CMB maps. (if dict, then must have keys 't' 'e' and 'b' for individual transfer functions)
+        fal : dict of isotropic filtering arrays. Must include all of: 'tt', 'te', 'et','tb','bt','ee','eb','be','bb'.  (e.g. filtered tlm's are ftl * tlm of the data)
+        cache: filtered alm's will be cached if set.
+
+    """
+
+    def __init__(self, lib_dir, sim_lib, nside, transf: np.ndarray or dict, cl_len, fal, cache=False):
+        transfd = transf if isinstance(transf, dict) else {'t': transf, 'e': transf, 'b': transf}
+        assert 't' in transfd.keys() and 'e' in transfd.keys() and 'b' in transfd.keys()
+
+        self.sim_lib = sim_lib
+        self.fal = fal
+        self.lmax_fl = np.max([len(fal['tt']), len(fal['ee']), len(fal['bb']), len(fal['te'])]) - 1
+        self.nside = nside
+        self.transf = transfd
+
+        for idx in ['t', 'e', 'b']:
+            self.fal[idx+idx] *= utils.cli(self.transf[idx][:len(fal[idx+idx])])
+
+        super(library_fullsky_jTP, self).__init__(lib_dir, sim_lib, cl_len, cache=cache)
+
+    def hashdict(self):
+        return {'sim_lib': self.sim_lib.hashdict(), 'transf': utils.clhash(self.transf['t']),
+                'cl_len': {k: utils.clhash(self.cl[k]) for k in ['tt', 'ee', 'bb']},
+                'ftl': utils.clhash(self.fal['tt']), 'fel': utils.clhash(self.fal['ee']),
+                'fbl': utils.clhash(self.fal['bb']), 'ftel': utils.clhash(self.fal['te'])}
+
+    def get_fmask(self):
+        return np.ones(hp.nside2npix(self.nside), dtype=float)
+
+    def get_tal(self, a):
+        assert (a.lower() in ['t', 'e', 'b'])
+        return utils.cli(self.transf[a.lower()])
+
+    def get_fal(self):
+        return np.copy(self.fal)
+
+    def _apply_ivf(self, tqu, soltn=None):
+        tmap = tqu[0]
+        pmap = tqu[1:]
+        assert len(tmap) == hp.nside2npix(self.nside), (hp.npix2nside(tmap.size), self.nside)
+        assert len(pmap[0]) == hp.nside2npix(self.nside) and len(pmap[0]) == len(pmap[1])
+        elm, blm = hp.map2alm_spin([m for m in pmap], 2, lmax=self.lmax_fl)
+        tlm = hp.map2alm(tmap, lmax=self.lmax_fl, iter=0)
+        teblm = np.array([tlm, elm, blm])
+        ret = np.zeros_like(teblm)
+        assert np.shape(teblm)[0] == 3
+        for i in ['t', 'e', 'b']:
+            for j in ['t', 'e', 'b']:
+                ret[j] += hp.almxfl(teblm[i], self.fal[i + j])
+        return ret
+
+
+class library_fullsky_alms_jTP(library_jTP):
+    """Full-sky isotropic filtering instance, but with harmonic space inputs
+
+    Args:
+        lib_dir: directory where hashes and filtered maps will be cached.
+        sim_lib: simulation library instance to inverse-filter
+        cl_len : CMB spectra, used to compute the Wiener-filtered CMB from the inverse variance filtered maps.
+        transf : fiducial transfer function of the CMB maps. (if dict, then must have keys 't' 'e' and 'b' for individual transfer functions)
+        fal : dict of isotropic filtering arrays. Must include all of: 'tt', 'te', 'et','tb','bt','ee','eb','be','bb'.  (e.g. filtered tlm's are ftl * tlm of the data)
+        cache: filtered alm's will be cached if set.
+
+    """
+
+    def __init__(self, lib_dir, sim_lib, transf: np.ndarray or dict, cl_len, fal, cache=False):
+        transfd = transf if isinstance(transf, dict) else {'t': transf, 'e': transf, 'b': transf}
+        assert 't' in transfd.keys() and 'e' in transfd.keys() and 'b' in transfd.keys()
+
+        self.sim_lib = sim_lib
+        self.fal = fal
+        self.lmax_fl = np.max([len(fal['tt']), len(fal['ee']), len(fal['bb']), len(fal['te'])]) - 1
+        self.transf = transfd
+
+        for idx in ['t', 'e', 'b']:
+            self.fal[idx+idx] *= utils.cli(self.transf[idx][:len(fal[idx+idx])])
+
+        super(library_fullsky_alms_jTP, self).__init__(lib_dir, sim_lib, cl_len, cache=cache)
+
+    def hashdict(self):
+        return {'sim_lib': self.sim_lib.hashdict(), 'transf': utils.clhash(self.transf['t']),
+                'cl_len': {k: utils.clhash(self.cl[k]) for k in ['tt', 'ee', 'bb']},
+                'ftl': utils.clhash(self.fal['tt']), 'fel': utils.clhash(self.fal['ee']),
+                'fbl': utils.clhash(self.fal['bb']), 'ftel': utils.clhash(self.fal['te'])}
+
+    def get_fmask(self):
+        return np.array([1.])  # For compatibility purposes only...
+
+    def get_tal(self, a):
+        assert (a.lower() in ['t', 'e', 'b'])
+        return utils.cli(self.transf[a.lower()])
+
+    def get_fal(self):
+        return np.copy(self.fal)
+
+    def _apply_ivf(self, teblm, soltn=None):
+        ret = np.zeros_like(teblm)
+        assert np.shape(teblm)[0] == 3
+        for iii, idx_i in enumerate(['t', 'e', 'b']):
+            for jjj, idx_j in enumerate(['t', 'e', 'b']):
+                ret[jjj] += hp.almxfl(teblm[iii], self.fal[idx_i + idx_j])
+        return ret
 
 
 class library_apo_sepTP(library_sepTP):
