@@ -13,6 +13,7 @@ import collections
 from plancklens import utils as ut, utils_qe as uqe
 from plancklens.helpers import mpi
 from plancklens import qresp
+import plancklens
 
 _write_alm = lambda fn, alm : hp.write_alm(fn, alm, overwrite=True)
 
@@ -294,7 +295,10 @@ class library:
         """ Noise inhomogeneity estimator (same as point-source estimator but acting on beam-deconvolved maps) """
         f1 = self.f2map1 if not swapped else self.f2map2
         f2 = self.f2map2 if not swapped else self.f2map1
-        tmap1 = f1.get_wirestmap(idx, f1.ivfs.get_tal('t')[:]) * f2.get_wirestmap(idx, f2.ivfs.get_tal('t')[:])
+        cls_path = os.path.join(os.path.dirname(os.path.abspath(plancklens.__file__)), 'data', 'cls')
+        cluster_profile = np.loadtxt(cls_path+"cluster_profile.dat")
+        tmap1 = f1.get_wirestmap(idx, cluster_profile) * f2.get_wirestmap(idx, f2.ivfs.get_tal('t')[:])
+        # tmap1 = f1.get_wirestmap(idx, f1.ivfs.get_tal('t')[:]) * f2.get_wirestmap(idx, f2.ivfs.get_tal('t')[:])
         return -0.5 * hp.map2alm(tmap1, lmax=self.get_lmax_qlm('T'), iter=0)
 
     def _get_sim_ftt(self, idx, joint=False, swapped=False):
