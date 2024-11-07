@@ -529,9 +529,9 @@ class library_fullsky_jTP(library_jTP):
         teblm = np.array([tlm, elm, blm])
         ret = np.zeros_like(teblm)
         assert np.shape(teblm)[0] == 3
-        for i in ['t', 'e', 'b']:
-            for j in ['t', 'e', 'b']:
-                ret[j] += hp.almxfl(teblm[i], self.fal[i + j])
+        for iii, idx_i in enumerate(['t', 'e', 'b']):
+            for jjj, idx_j in enumerate(['t', 'e', 'b']):
+                ret[iii] += hp.almxfl(teblm[jjj], self.fal[idx_i + idx_j])
         return ret
 
 
@@ -583,7 +583,7 @@ class library_fullsky_alms_jTP(library_jTP):
         assert np.shape(teblm)[0] == 3
         for iii, idx_i in enumerate(['t', 'e', 'b']):
             for jjj, idx_j in enumerate(['t', 'e', 'b']):
-                ret[jjj] += hp.almxfl(teblm[iii], self.fal[idx_i + idx_j])
+                ret[iii] += hp.almxfl(teblm[jjj], self.fal[idx_i + idx_j])
         return ret
 
 
